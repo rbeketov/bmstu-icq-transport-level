@@ -2,6 +2,7 @@ import json
 
 from confluent_kafka import Producer
 
+
 CONSUMER_TOPIC = "assembling_message_topic"
 
 p = Producer({'bootstrap.servers': 'localhost:29092'})
