@@ -109,7 +109,7 @@ def send_message(request, format=None):
                     "sender": request_sender,
                     "timestamp": request_timestamp,
                     "part_message_id": i,
-                    "message": bytes(batch).decode('utf-8'),
+                    "message": str(bytes(batch)),
                 }
             )
     except Exception as e:

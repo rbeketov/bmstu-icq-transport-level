@@ -2,6 +2,7 @@ import threading
 import time
 import json
 import requests
+import codecs
 
 from confluent_kafka import Consumer
 
@@ -68,7 +69,7 @@ class KafkaMessageConsumer(threading.Thread):
             
             prev_timestamp = None
             curr_sender = None
-            curr_message = None
+            curr_message = []
 
             prev_id = None
             flag_error = False
@@ -76,7 +77,7 @@ class KafkaMessageConsumer(threading.Thread):
             for message in sorted_messages:
 
                 if prev_timestamp == message['timestamp']:
-                    curr_message += message['message']
+                    curr_message.extend(list(eval(message['message'])))
                     if prev_id + 1 != message['part_message_id'] or message['flag_error']:
                         flag_error = True
                     prev_id = message['part_message_id']
@@ -86,7 +87,7 @@ class KafkaMessageConsumer(threading.Thread):
                             {
                                 "sender": curr_sender,
                                 "timestamp": prev_timestamp,
-                                "message": curr_message,
+                                "message": bytes(curr_message).decode("utf-8"),
                                 "flag_error": flag_error,
                             }
                         )
@@ -95,7 +96,7 @@ class KafkaMessageConsumer(threading.Thread):
                     if prev_id != 0 or message['flag_error']:
                         flag_error = True
                     prev_timestamp = message['timestamp']
-                    curr_message = message['message']
+                    curr_message = list(eval(message['message']))
                     curr_sender = message['sender']
 
             if prev_timestamp is not None:
@@ -103,7 +104,7 @@ class KafkaMessageConsumer(threading.Thread):
                     {
                         "sender": curr_sender,
                         "timestamp": prev_timestamp,
-                        "message": curr_message,
+                        "message": bytes(curr_message).decode("utf-8"),
                         "flag_error": flag_error,
                     }
                 )
