@@ -1,21 +1,20 @@
-<<<<<<< Updated upstream
-=======
+
 import json
 import requests
 from itertools import islice
 
->>>>>>> Stashed changes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from strenum import StrEnum
+from enum import auto
 
-<<<<<<< Updated upstream
-from kafka import KafkaProducer
-=======
 from .producer_message import KafkaMessageProducer
+
+from kafka import KafkaProducer
 from .logger import Logger
 
 
@@ -32,31 +31,34 @@ def batched(iterable, n):
     while batch := tuple(islice(it, n)):
         yield batch
 
-
 class RequestField(StrEnum):
     sender = auto()
     timestamp = auto()
     message = auto()
     part_message_id = auto()
     flag_error = auto()
->>>>>>> Stashed changes
-
 
 @swagger_auto_schema(
     method='post',
     manual_parameters=[
-        openapi.Parameter('sender',
-                          openapi.IN_QUERY,
-                          description="ID отправителя сообщения",
-                          type=openapi.TYPE_INTEGER),
-        openapi.Parameter('timestamp',
-                          openapi.IN_QUERY,
-                          description="Время отправления",
-                          type=openapi.TYPE_INTEGER),
-        openapi.Parameter('message',
-                          openapi.IN_QUERY,
-                          description="Сообщение",
-                          type=openapi.TYPE_INTEGER),
+        openapi.Parameter(
+            'sender',
+            openapi.IN_QUERY,
+            description="login отправителя сообщения",
+            type=openapi.TYPE_STRING
+        ),
+        openapi.Parameter(
+            'timestamp',
+            openapi.IN_QUERY,
+            description="Время отправления",
+            type=openapi.TYPE_INTEGER
+        ),
+        openapi.Parameter(
+            'message',
+            openapi.IN_QUERY,
+            description="Сообщение",
+            type=openapi.TYPE_INTEGER
+        ),
     ],
     responses={
         200: "Ок",
@@ -65,12 +67,28 @@ class RequestField(StrEnum):
 )
 @api_view(['POST'])
 def send_message(request, format=None):
-<<<<<<< Updated upstream
-=======
+
     data = json.loads(request.body.decode())
 
     request_sender = data.get(RequestField.sender, "")
     if not request_sender or not isinstance(request_sender, str):
+
+        return Response(
+            status=status.HTTP_400_BAD_REQUEST,
+            data={"Ошибка": f"Ошибка в поле {RequestField.sender}"}
+        )
+    request_timestamp = data.get(RequestField.timestamp, "")
+    if not request_timestamp or not isinstance(request_timestamp, int):
+        return Response(
+            status=status.HTTP_400_BAD_REQUEST,
+            data={"Ошибка": f"Ошибка в поле {RequestField.timestamp}"}
+        )
+    request_message = data.get(RequestField.message, "")
+    if not request_message or not isinstance(request_message, str):
+        return Response(
+            status=status.HTTP_400_BAD_REQUEST,
+            data={"Ошибка": f"Ошибка в поле {RequestField.message}"}
+        )
         err_mess = f"Ошибка в поле {RequestField.sender}"
         logger.error(err_mess)
         return Response(
@@ -110,12 +128,12 @@ def send_message(request, format=None):
     except Exception as e:
         logger.error(f"Ошибка во время сегментации и декодирования: {e}")
         return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
->>>>>>> Stashed changes
 
     for d in result_dicts:
         response = requests.post(URL_CODING_SERVICE, data=d)
         if response.status_code != 200:
             logger.error(f"Получен статуc {response.status_code} от сервера кодирования")
+
 
     logger.info("Запрос обработан со статусом 200")
     return Response(status=status.HTTP_200_OK)
@@ -124,22 +142,36 @@ def send_message(request, format=None):
 @swagger_auto_schema(
     method='post',
     manual_parameters=[
-        openapi.Parameter('sender',
-                          openapi.IN_QUERY,
-                          description="ID отправителя сообщения",
-                          type=openapi.TYPE_INTEGER),
-        openapi.Parameter('timestamp',
-                          openapi.IN_QUERY,
-                          description="Время отправления",
-                          type=openapi.TYPE_INTEGER),
-        openapi.Parameter('part_message_id',
-                          openapi.IN_QUERY,
-                          description="ID части сообщения",
-                          type=openapi.TYPE_INTEGER),
-        openapi.Parameter('message',
-                          openapi.IN_QUERY,
-                          description="Часть сообщения",
-                          type=openapi.TYPE_INTEGER),
+        openapi.Parameter(
+            'sender',
+            openapi.IN_QUERY,
+            description="login отправителя сообщения",
+            type=openapi.TYPE_STRING
+        ),
+        openapi.Parameter(
+            'timestamp',
+            openapi.IN_QUERY,
+            description="Время отправления",
+            type=openapi.TYPE_INTEGER
+        ),
+        openapi.Parameter(
+            'part_message_id',
+            openapi.IN_QUERY,
+            description="ID части сообщения",
+            type=openapi.TYPE_INTEGER
+        ),
+        openapi.Parameter(
+            'message',
+            openapi.IN_QUERY,
+            description="Часть сообщения",
+            type=openapi.TYPE_INTEGER
+        ),
+        openapi.Parameter(
+            'flag_error',
+            openapi.IN_QUERY,
+            description="Признак ошибки",
+            type=openapi.TYPE_BOOLEAN
+        ),
     ],
     responses={
         200: "Ок",
@@ -148,10 +180,9 @@ def send_message(request, format=None):
 )
 @api_view(['POST'])
 def transfer_message(request, format=None):
+    try:
+        data = json.loads(request.body.decode())
 
-<<<<<<< Updated upstream
-    return Response(status=status.HTTP_200_OK)
-=======
         request_sender = data.get(RequestField.sender, "")
         if not request_sender or not isinstance(request_sender, str):
             return Response(
@@ -182,9 +213,10 @@ def transfer_message(request, format=None):
                 status=status.HTTP_400_BAD_REQUEST,
                 data={"Ошибка": f"Ошибка в поле {RequestField.flag_error}"}
             )
+
         producer = KafkaMessageProducer()
         producer.produced_data([data])
         return Response(status=status.HTTP_200_OK)
     except Exception as e:
         return Response(status=status.HTTP_400_BAD_REQUEST, data={"Ошибка": f"{e}"})
->>>>>>> Stashed changes
+
