@@ -92,7 +92,7 @@ class KafkaMessageConsumer(threading.Thread):
                         )
                     flag_error = False
                     prev_id = message['part_message_id']
-                    if prev_id != 1 or message['flag_error']:
+                    if prev_id != 0 or message['flag_error']:
                         flag_error = True
                     prev_timestamp = message['timestamp']
                     curr_message = message['message']
