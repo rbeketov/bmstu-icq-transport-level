@@ -1,4 +1,7 @@
+
 import json
+import requests
+from itertools import islice
 
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,13 +14,29 @@ from enum import auto
 
 from .producer_message import KafkaMessageProducer
 
+from kafka import KafkaProducer
+from .logger import Logger
+
+
+LEN_BYTES = 100
+URL_CODING_SERVICE = "http://localhost:8081/code/"
+logger = Logger().get_logger(__name__)
+
+
+def batched(iterable, n):
+    # batched('ABCDEFG', 3) → ABC DEF G
+    if n < 1:
+        raise ValueError('n must be at least one')
+    it = iter(iterable)
+    while batch := tuple(islice(it, n)):
+        yield batch
+
 class RequestField(StrEnum):
     sender = auto()
     timestamp = auto()
     message = auto()
     part_message_id = auto()
     flag_error = auto()
-
 
 @swagger_auto_schema(
     method='post',
@@ -48,10 +67,12 @@ class RequestField(StrEnum):
 )
 @api_view(['POST'])
 def send_message(request, format=None):
+
     data = json.loads(request.body.decode())
 
     request_sender = data.get(RequestField.sender, "")
     if not request_sender or not isinstance(request_sender, str):
+
         return Response(
             status=status.HTTP_400_BAD_REQUEST,
             data={"Ошибка": f"Ошибка в поле {RequestField.sender}"}
@@ -68,7 +89,53 @@ def send_message(request, format=None):
             status=status.HTTP_400_BAD_REQUEST,
             data={"Ошибка": f"Ошибка в поле {RequestField.message}"}
         )
+        err_mess = f"Ошибка в поле {RequestField.sender}"
+        logger.error(err_mess)
+        return Response(
+            status=status.HTTP_400_BAD_REQUEST,
+            data={"Ошибка": err_mess}
+        )
+    request_timestamp = data.get(RequestField.timestamp, "")
+    if not request_timestamp or not isinstance(request_timestamp, int):
+        err_mess = f"Ошибка в поле {RequestField.timestamp}"
+        logger.error(err_mess)
+        return Response(
+            status=status.HTTP_400_BAD_REQUEST,
+            data={"Ошибка": err_mess}
+        )
+    request_message = data.get(RequestField.message, "")
+    if not request_message or not isinstance(request_message, str):
+        err_mess = f"Ошибка в поле {RequestField.message}"
+        logger.error(err_mess)
+        return Response(
+            status=status.HTTP_400_BAD_REQUEST,
+            data={"Ошибка": err_mess}
+        )
+    
+    #TODO отравлять только байты
+    result_dicts = []
+    try:
+        request_message_bytes = bytes(request_message.encode('utf-8'))
+        for i, batch in enumerate(batched(request_message_bytes, LEN_BYTES)):
+            result_dicts.append(
+                {
+                    "sender": request_sender,
+                    "timestamp": request_timestamp,
+                    "part_message_id": i,
+                    "message": batch.decode('utf-8'),
+                }
+            )
+    except Exception as e:
+        logger.error(f"Ошибка во время сегментации и декодирования: {e}")
+        return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    for d in result_dicts:
+        response = requests.post(URL_CODING_SERVICE, data=d)
+        if response.status_code != 200:
+            logger.error(f"Получен статуc {response.status_code} от сервера кодирования")
+
+
+    logger.info("Запрос обработан со статусом 200")
     return Response(status=status.HTTP_200_OK)
 
 
@@ -146,10 +213,10 @@ def transfer_message(request, format=None):
                 status=status.HTTP_400_BAD_REQUEST,
                 data={"Ошибка": f"Ошибка в поле {RequestField.flag_error}"}
             )
-        # producer = KafkaMessageProducer()
-        # producer.produced_data(
 
-        # )
+        producer = KafkaMessageProducer()
+        producer.produced_data([data])
         return Response(status=status.HTTP_200_OK)
     except Exception as e:
         return Response(status=status.HTTP_400_BAD_REQUEST, data={"Ошибка": f"{e}"})
+
