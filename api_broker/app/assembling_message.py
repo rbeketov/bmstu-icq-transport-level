@@ -1,16 +1,19 @@
 import threading
 import time
+import json
+import requests
 
 from confluent_kafka import Consumer
 
 from confluent_kafka.admin import AdminClient, NewTopic
 
 
-GET_MESSAGE_INTERVAL = 5
+GET_MESSAGE_INTERVAL = 3
 BOOTSTRAP_SERVER = 'localhost:29092'
 CONSUMER_TOPIC = "assembling_message_topic"
 GROUP_ID = "assembling_message_id"
 AUTO_OFFSET_RESET = 'earliest'
+URL_RECIVE ="http://localhost:8082/recive/"
 
 
 class KafkaMessageConsumer(threading.Thread):
@@ -42,18 +45,56 @@ class KafkaMessageConsumer(threading.Thread):
                 if msg.error():
                     print("Consumer error: {}".format(msg.error()))
                     break
-
-                result_messages.append(msg.value().decode('utf-8'))
-
+                
+                json_data = json.loads(msg.value().decode('utf-8'))
+                result_messages.append(json_data)
         except Exception as e:
             print(f"Error: {e}")
             return []
 
         return result_messages
 
-    def process_messages(self, messages):
-        for message in messages:
-            print(message)
+    def process_messages(self, messages): 
+        sorted_messages = sorted(messages, key=lambda x: (x['timestamp'], x['part_message_id']))
+        
+        result_message = []
+        
+        prev_timestamp = None
+        curr_sender = None
+        curr_message = None
+
+        prev_id = None
+        flag_error = False
+        
+        for message in sorted_messages:
+
+            if prev_timestamp == message['timestamp']:
+                curr_message += message['message']
+                if prev_id + 1 != message['part_message_id']:
+                    flag_error = True
+                prev_id = message['part_message_id']
+            else:
+                if prev_timestamp is not None:
+                    result_message.append(
+                        {
+                            "sender": curr_sender,
+                            "timestamp": prev_timestamp,
+                            "message": curr_message,
+                            "flag_error": flag_error,
+                        }
+                    )
+                flag_error = False
+                prev_id = message['part_message_id']
+                if prev_id != 1:
+                    flag_error = True
+                prev_timestamp = message['timestamp']
+                curr_message = message['message']
+                curr_sender = message['sender']
+
+        for mes in result_message:
+            response = requests.post(URL_RECIVE, data=mes)
+            if response.status_code != 200:
+                print(f"Получен статуc {response.status_code} от сервера кодирования")
 
 
 def assembling_message():
