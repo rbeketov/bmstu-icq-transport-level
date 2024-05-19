@@ -24,8 +24,8 @@ schema_view = get_schema_view(
 urlpatterns = [
     path('', include(router.urls)),
     
-    path(r'message/send/', views.send_message, name='send_message'),
-    path(r'encoded-message/transfer/', views.transfer_message, name='transfer_message'),
+    path(r'message/send', views.send_message, name='send_message'),
+    path(r'encoded-message/transfer', views.transfer_message, name='transfer_message'),
 
 
     path('admin/', admin.site.urls),

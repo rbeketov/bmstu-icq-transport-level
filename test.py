@@ -16,7 +16,22 @@ def delivery_report(err, msg):
         print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
 
 
-some_data_source = [{"hello": "privet"}]
+some_data_source = [
+    {
+        'sender': 'sender',
+        'timestamp': 12412412,
+        'part_message_id': 2,
+        "message": " маму",
+        "flag_error": True,
+    },
+    {
+        'sender': 'sender',
+        'timestamp': 12412412,
+        'part_message_id': 1,
+        "message": "Я люблю",
+        "flag_error": False,
+    }
+]
 
 for data in some_data_source:
     # Trigger any available delivery report callbacks from previous produce() calls

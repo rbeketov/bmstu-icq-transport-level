@@ -6,6 +6,10 @@ import requests
 from confluent_kafka import Consumer
 
 from confluent_kafka.admin import AdminClient, NewTopic
+from .logger import Logger
+
+
+logger = Logger().get_logger(__name__)
 
 
 GET_MESSAGE_INTERVAL = 3
@@ -30,9 +34,11 @@ class KafkaMessageConsumer(threading.Thread):
         self.consumer.subscribe([CONSUMER_TOPIC])
 
     def run(self):
+        logger.info("Запущен косъюмер...")
         while True:
             messages = self.get_messages_from_kafka()
-            self.process_messages(messages)
+            if messages:
+                self.process_messages(messages)
             time.sleep(self.interval)
 
     def get_messages_from_kafka(self):
@@ -43,71 +49,91 @@ class KafkaMessageConsumer(threading.Thread):
                 if msg is None:
                     break
                 if msg.error():
-                    print("Consumer error: {}".format(msg.error()))
+                    logger.error("Ошибка чтения из kafla: {}".format(msg.error()))
                     break
                 
                 json_data = json.loads(msg.value().decode('utf-8'))
                 result_messages.append(json_data)
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
             return []
 
         return result_messages
 
     def process_messages(self, messages): 
-        sorted_messages = sorted(messages, key=lambda x: (x['timestamp'], x['part_message_id']))
-        
-        result_message = []
-        
-        prev_timestamp = None
-        curr_sender = None
-        curr_message = None
+        try:
+            sorted_messages = sorted(messages, key=lambda x: (x['timestamp'], x['part_message_id']))
+            logger.info(f"Обработка {sorted_messages}")
+            result_message = []
+            
+            prev_timestamp = None
+            curr_sender = None
+            curr_message = None
 
-        prev_id = None
-        flag_error = False
-        
-        for message in sorted_messages:
+            prev_id = None
+            flag_error = False
+            
+            for message in sorted_messages:
 
-            if prev_timestamp == message['timestamp']:
-                curr_message += message['message']
-                if prev_id + 1 != message['part_message_id']:
-                    flag_error = True
-                prev_id = message['part_message_id']
-            else:
-                if prev_timestamp is not None:
-                    result_message.append(
-                        {
-                            "sender": curr_sender,
-                            "timestamp": prev_timestamp,
-                            "message": curr_message,
-                            "flag_error": flag_error,
-                        }
-                    )
-                flag_error = False
-                prev_id = message['part_message_id']
-                if prev_id != 1:
-                    flag_error = True
-                prev_timestamp = message['timestamp']
-                curr_message = message['message']
-                curr_sender = message['sender']
+                if prev_timestamp == message['timestamp']:
+                    curr_message += message['message']
+                    if prev_id + 1 != message['part_message_id'] or message['flag_error']:
+                        flag_error = True
+                    prev_id = message['part_message_id']
+                else:
+                    if prev_timestamp is not None:
+                        result_message.append(
+                            {
+                                "sender": curr_sender,
+                                "timestamp": prev_timestamp,
+                                "message": curr_message,
+                                "flag_error": flag_error,
+                            }
+                        )
+                    flag_error = False
+                    prev_id = message['part_message_id']
+                    if prev_id != 1 or message['flag_error']:
+                        flag_error = True
+                    prev_timestamp = message['timestamp']
+                    curr_message = message['message']
+                    curr_sender = message['sender']
 
-        for mes in result_message:
-            response = requests.post(URL_RECIVE, data=mes)
-            if response.status_code != 200:
-                print(f"Получен статуc {response.status_code} от сервера кодирования")
+            if prev_timestamp is not None:
+                result_message.append(
+                    {
+                        "sender": curr_sender,
+                        "timestamp": prev_timestamp,
+                        "message": curr_message,
+                        "flag_error": flag_error,
+                    }
+                )
+
+            logger.info(f"Обработанные сообщения {result_message}")
+
+            for mes in result_message:
+                logger.info(f"Пробуем отправить {mes}")
+                response = requests.post(URL_RECIVE, data=mes)
+                if response.status_code != 200:
+                    logger.info(f"Получен статуc {response.status_code} от прикладного уровня")
+                logger.info("Сообщение успешно доставленно на прикладной уровень")
+        except requests.exceptions.ConnectionError as e:
+            pass
+            #logger.error(f"Не получилось отпправить сообщение {e}")
+        except Exception as e:
+            logger.error(f"Ошибка обработки сообщений {e}")
 
 
 def assembling_message():
     a = AdminClient({'bootstrap.servers': BOOTSTRAP_SERVER})
 
-    new_topics = [NewTopic(topic, num_partitions=3, replication_factor=1) for topic in [CONSUMER_TOPIC]]
+    new_topics = [NewTopic(topic, num_partitions=1, replication_factor=1) for topic in [CONSUMER_TOPIC]]
     fs = a.create_topics(new_topics)
     for topic, f in fs.items():
         try:
             f.result()
-            print("Topic {} created".format(topic))
+            logger.info("Топик {} успешно создан".format(topic))
         except Exception as e:
-            print("Failed to create topic {}: {}".format(topic, e))
+            logger.error("Ошибка создания топика {}: {}".format(topic, e))
 
     kafka_consumer = KafkaMessageConsumer(interval=GET_MESSAGE_INTERVAL)
     kafka_consumer.start()

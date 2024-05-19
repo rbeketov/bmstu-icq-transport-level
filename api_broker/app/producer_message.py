@@ -2,23 +2,25 @@ import json
 
 from confluent_kafka import Producer
 
-from .singletone import SingleTone
+from .logger import Logger
 
 
+logger = Logger().get_logger(__name__)
 CONSUMER_TOPIC = "assembling_message_topic"
 
 
-class KafkaMessageProducer(SingleTone):
+class KafkaMessageProducer():
     def __init__(self):
         self.producer = Producer({'bootstrap.servers': 'localhost:29092'})
 
+    @staticmethod
     def _delivery_report(err, msg):
         """ Called once for each message produced to indicate delivery result.
             Triggered by poll() or flush(). """
         if err is not None:
-            print('Message delivery failed: {}'.format(err))
+            logger.error('Сообщение не доставлено: {}'.format(err))
         else:
-            print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
+            logger.info('Сообщение доставлено в {}, партиция {}'.format(msg.topic(), msg.partition()))
     
     def produced_data(self, buffer: list[dict]):
         try:
@@ -32,4 +34,4 @@ class KafkaMessageProducer(SingleTone):
                 )
             self.producer.flush()
         except Exception as e:
-            print("Cathced error while producing data")
+            logger.error(f"Ошибка в продъюсере: {e}")
