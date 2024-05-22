@@ -18,7 +18,7 @@ BOOTSTRAP_SERVER = 'localhost:29092'
 CONSUMER_TOPIC = "assembling_message_topic"
 GROUP_ID = "assembling_message_id"
 AUTO_OFFSET_RESET = 'earliest'
-URL_RECIVE ="http://localhost:8082/recive/"
+URL_RECIVE ="http://localhost:8081/receive"
 
 
 class KafkaMessageConsumer(threading.Thread):

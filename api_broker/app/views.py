@@ -18,7 +18,7 @@ from .logger import Logger
 
 
 LEN_BYTES = 100
-URL_CODING_SERVICE = "http://localhost:8081/code"
+URL_CODING_SERVICE = "http://localhost:8082/code"
 HEADERS = {'Content-Type': 'application/json'}
 logger = Logger().get_logger(__name__)
 
