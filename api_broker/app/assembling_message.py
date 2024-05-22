@@ -83,6 +83,8 @@ class KafkaMessageConsumer(threading.Thread):
                     prev_id = message['part_message_id']
                 else:
                     if prev_timestamp is not None:
+                        if prev_id + 1 != message['total']:
+                            flag_error = True
                         result_message.append(
                             {
                                 "sender": curr_sender,
@@ -100,6 +102,8 @@ class KafkaMessageConsumer(threading.Thread):
                     curr_sender = message['sender']
 
             if prev_timestamp is not None:
+                if prev_id + 1 != message['total']:
+                    flag_error = True
                 result_message.append(
                     {
                         "sender": curr_sender,

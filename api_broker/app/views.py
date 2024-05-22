@@ -38,6 +38,7 @@ class RequestField(StrEnum):
     message = auto()
     part_message_id = auto()
     flag_error = auto()
+    total = auto()
 
 
 @swagger_auto_schema(
@@ -45,19 +46,19 @@ class RequestField(StrEnum):
     manual_parameters=[
         openapi.Parameter(
             'sender',
-            openapi.IN_QUERY,
+            openapi.IN_BODY,
             description="login отправителя сообщения",
             type=openapi.TYPE_STRING
         ),
         openapi.Parameter(
             'timestamp',
-            openapi.IN_QUERY,
+            openapi.IN_BODY,
             description="Время отправления",
             type=openapi.TYPE_INTEGER
         ),
         openapi.Parameter(
             'message',
-            openapi.IN_QUERY,
+            openapi.IN_BODY,
             description="Сообщение",
             type=openapi.TYPE_INTEGER
         ),
@@ -98,11 +99,11 @@ def send_message(request, format=None):
             status=status.HTTP_400_BAD_REQUEST,
             data={"Ошибка": err_mess}
         )
-    
-    #TODO отравлять только байты
+
     result_dicts = []
     try:
         request_message_bytes = bytes(request_message.encode('utf-8'))
+        
         for i, batch in enumerate(batched(request_message_bytes, LEN_BYTES)):
             result_dicts.append(
                 {
@@ -116,8 +117,10 @@ def send_message(request, format=None):
         logger.error(f"Ошибка во время сегментации и декодирования: {e}")
         return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    total_len = len(result_dicts)
     for d in result_dicts:
         try:
+            d["total"] = total_len
             logger.info(f"Пробуем отправить {d} на {URL_CODING_SERVICE}")
             d_json = json.dumps(d)
             response = requests.post(URL_CODING_SERVICE, data=d_json, headers=HEADERS)
@@ -136,26 +139,32 @@ def send_message(request, format=None):
     manual_parameters=[
         openapi.Parameter(
             'sender',
-            openapi.IN_QUERY,
+            openapi.IN_BODY,
             description="login отправителя сообщения",
             type=openapi.TYPE_STRING
         ),
         openapi.Parameter(
             'timestamp',
-            openapi.IN_QUERY,
+            openapi.IN_BODY,
             description="Время отправления",
             type=openapi.TYPE_INTEGER
         ),
         openapi.Parameter(
             'part_message_id',
-            openapi.IN_QUERY,
+            openapi.IN_BODY,
             description="ID части сообщения",
             type=openapi.TYPE_INTEGER
         ),
         openapi.Parameter(
             'message',
-            openapi.IN_QUERY,
+            openapi.IN_BODY,
             description="Часть сообщения",
+            type=openapi.TYPE_INTEGER
+        ),
+        openapi.Parameter(
+            'total',
+            openapi.IN_BODY,
+            description="Количество сегментов",
             type=openapi.TYPE_INTEGER
         ),
         openapi.Parameter(
@@ -220,8 +229,16 @@ def transfer_message(request, format=None):
                 status=status.HTTP_400_BAD_REQUEST,
                 data={"Ошибка": err_mess}
             )
+        
+        request_total = data.get(RequestField.total, "")
+        if request_total == "" or not isinstance(request_total, int):
+            err_mess = f"Ошибка в поле {RequestField.total}"
+            logger.error(err_mess)
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data={"Ошибка": err_mess}
+            )
 
-        # logger.debug("До продусера")
         producer = KafkaMessageProducer()
         producer.produced_data([data])
         logger.info("Успешно обработан запрос transfer_message")
