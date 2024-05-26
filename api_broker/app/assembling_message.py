@@ -18,7 +18,8 @@ BOOTSTRAP_SERVER = 'localhost:29092'
 CONSUMER_TOPIC = "assembling_message_topic"
 GROUP_ID = "assembling_message_id"
 AUTO_OFFSET_RESET = 'earliest'
-URL_RECIVE ="http://localhost:8081/receive"
+URL_RECIVE ="http://172.20.10.3:8081/receive"
+HEADERS = {'Content-Type': 'application/json'}
 
 
 class KafkaMessageConsumer(threading.Thread):
@@ -117,7 +118,8 @@ class KafkaMessageConsumer(threading.Thread):
 
             for mes in result_message:
                 logger.info(f"Пробуем отправить {mes}")
-                response = requests.post(URL_RECIVE, data=mes)
+                mes_json = json.dumps(mes)
+                response = requests.post(URL_RECIVE, data=mes_json, headers=HEADERS)
                 if response.status_code != 200:
                     logger.info(f"Получен статуc {response.status_code} от прикладного уровня")
                 logger.info("Сообщение успешно доставленно на прикладной уровень")

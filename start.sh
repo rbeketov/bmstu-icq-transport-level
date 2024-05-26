@@ -5,5 +5,5 @@ docker-compose down
 set -e
 
 docker-compose up -d
-python3 api_broker/manage.py runserver --noreload 127.0.0.1:8080
+python3 api_broker/manage.py runserver --noreload 0.0.0.0:8080
 

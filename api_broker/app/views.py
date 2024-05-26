@@ -18,7 +18,7 @@ from .logger import Logger
 
 
 LEN_BYTES = 100
-URL_CODING_SERVICE = "http://localhost:8082/code"
+URL_CODING_SERVICE = "http://172.20.10.11:8082/code"
 HEADERS = {'Content-Type': 'application/json'}
 logger = Logger().get_logger(__name__)
 
@@ -126,9 +126,11 @@ def send_message(request, format=None):
             response = requests.post(URL_CODING_SERVICE, data=d_json, headers=HEADERS)
             if response.status_code != 200:
                 logger.warning(f"Получен статуc {response.status_code} от сервера кодирования")
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             logger.info(f"Получен статуc {response.status_code} от сервера кодирования")
         except Exception as e:
-            logger.error(f"Ошибка во время запроса {URL_CODING_SERVICE}: {e}")
+            Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return logger.error(f"Ошибка во время запроса {URL_CODING_SERVICE}: {e}")
 
     logger.info("Запрос обработан со статусом 200")
     return Response(status=status.HTTP_200_OK)
